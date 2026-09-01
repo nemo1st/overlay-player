@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ChevronLeft,
   ChevronRight,
@@ -66,40 +67,15 @@ export default function App() {
   const [barVisible, setBarVisible] = useState<boolean>(true);
   const [showToast, setShowToast] = useState<string | null>(null);
 
-  const isDraggingRef = React.useRef(false);
-  const lastMousePosRef = React.useRef({ x: 0, y: 0 });
-
-  // ドラッグ移動ハンドラ (マウス追従)
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return;
-      const deltaX = e.screenX - lastMousePosRef.current.x;
-      const deltaY = e.screenY - lastMousePosRef.current.y;
-      lastMousePosRef.current = { x: e.screenX, y: e.screenY };
-
-      if (deltaX !== 0 || deltaY !== 0) {
-        invoke("move_window_by", { deltaX, deltaY }).catch(console.error);
-      }
-    };
-
-    const handleMouseUp = () => {
-      isDraggingRef.current = false;
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, []);
-
-  const handleDragStart = (e: React.MouseEvent) => {
+  // ウィンドウドラッグ開始ハンドラ
+  const handleStartDrag = async (e: React.MouseEvent) => {
     if (e.button === 0) {
-      isDraggingRef.current = true;
-      lastMousePosRef.current = { x: e.screenX, y: e.screenY };
-      invoke("start_drag").catch(() => {});
+      try {
+        const appWindow = getCurrentWindow();
+        await appWindow.startDragging();
+      } catch (err) {
+        console.error("ドラッグ開始エラー:", err);
+      }
     }
   };
 
@@ -210,9 +186,13 @@ export default function App() {
   }
 
   return (
-    <div className="w-full h-11 bg-zinc-900/95 backdrop-blur-md border-b border-zinc-800 text-zinc-200 flex items-center justify-between px-3 select-none text-xs">
+    <div
+      data-tauri-drag-region
+      onMouseDown={handleStartDrag}
+      className="w-full h-11 bg-zinc-900/95 backdrop-blur-md border-b border-zinc-800 text-zinc-200 flex items-center justify-between px-3 select-none text-xs cursor-default"
+    >
       {/* 左側: サービスセレクター & ブラウザ操作 */}
-      <div className="flex items-center gap-1.5 no-drag">
+      <div className="flex items-center gap-1.5 no-drag" onMouseDown={(e) => e.stopPropagation()}>
         {/* サービスドロップダウン */}
         <div className="relative group">
           <button className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 font-medium text-white transition">
@@ -288,7 +268,7 @@ export default function App() {
       {/* 中央: ウィンドウドラッグ領域 */}
       <div
         data-tauri-drag-region
-        onMouseDown={handleDragStart}
+        onMouseDown={handleStartDrag}
         className="flex-1 h-full flex items-center justify-center cursor-grab active:cursor-grabbing px-2 select-none"
       >
         <div data-tauri-drag-region className="flex items-center gap-1 text-zinc-500 hover:text-zinc-300 transition text-[11px] pointer-events-none">
@@ -298,9 +278,8 @@ export default function App() {
         </div>
       </div>
 
-
       {/* 右側: ウィンドウ制御 & オーバーレイ設定 */}
-      <div className="flex items-center gap-1.5 no-drag">
+      <div className="flex items-center gap-1.5 no-drag" onMouseDown={(e) => e.stopPropagation()}>
         {/* 最前面固定 */}
         <button
           onClick={toggleAlwaysOnTop}

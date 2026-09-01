@@ -161,26 +161,6 @@ fn close_app(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn move_window_by(app: AppHandle, delta_x: f64, delta_y: f64) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("main") {
-        let current_pos = window.outer_position().map_err(|e| e.to_string())?;
-        let scale_factor = window.scale_factor().unwrap_or(1.0);
-        let new_x = current_pos.x + (delta_x * scale_factor) as i32;
-        let new_y = current_pos.y + (delta_y * scale_factor) as i32;
-        window
-            .set_position(Position::Physical(PhysicalPosition::new(new_x, new_y)))
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-#[tauri::command]
-fn start_drag(window: tauri::WebviewWindow) -> Result<(), String> {
-    let _ = window.start_dragging();
-    Ok(())
-}
-
-#[tauri::command]
 fn minimize_app(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.minimize();
@@ -304,9 +284,7 @@ pub fn run() {
             toggle_bar_visible,
             sync_bounds,
             close_app,
-            minimize_app,
-            start_drag,
-            move_window_by
+            minimize_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
