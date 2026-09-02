@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size,
-    WebviewBuilder, WebviewUrl,
+    WebviewBuilder, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use url::Url;
@@ -10,6 +10,32 @@ use url::Url;
 static CLICK_THROUGH: AtomicBool = AtomicBool::new(false);
 static BAR_VISIBLE: AtomicBool = AtomicBool::new(true);
 const BAR_HEIGHT: f64 = 44.0;
+
+// macOSにおいて、Spaces（仮想デスクトップ）切り替えや全画面アプリ上でもオーバーレイウィンドウを表示し続けるための設定
+#[cfg(target_os = "macos")]
+fn setup_macos_spaces_behavior(window: &tauri::WebviewWindow) {
+    use objc2_app_kit::{NSMainMenuWindowLevel, NSWindow, NSWindowCollectionBehavior};
+    if let Ok(ns_win_ptr) = window.ns_window() {
+        unsafe {
+            let ns_win = &*(ns_win_ptr as *const NSWindow);
+            let existing = ns_win.collectionBehavior();
+            // CanJoinAllSpaces: すべてのSpaceで表示
+            // FullScreenAuxiliary: 全画面表示中の他アプリ（フルスクリーンSpace）の上にもオーバーレイ表示
+            // Stationary: ExposeやSpaces移動時にも位置を固定
+            // IgnoresCycle: ウィンドウ切り替えサイクルから除外
+            ns_win.setCollectionBehavior(
+                existing
+                    | NSWindowCollectionBehavior::CanJoinAllSpaces
+                    | NSWindowCollectionBehavior::FullScreenAuxiliary
+                    | NSWindowCollectionBehavior::Stationary
+                    | NSWindowCollectionBehavior::IgnoresCycle,
+            );
+            // フルスクリーンアプリの上に乗るようにウィンドウレベルを引き上げる
+            ns_win.setLevel(NSMainMenuWindowLevel);
+            ns_win.orderFrontRegardless();
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct AppState {
@@ -42,6 +68,10 @@ fn get_current_url(state: tauri::State<'_, AppState>) -> Result<String, String> 
 fn set_always_on_top(app: AppHandle, enabled: bool) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         window.set_always_on_top(enabled).map_err(|e| e.to_string())?;
+        #[cfg(target_os = "macos")]
+        if enabled {
+            setup_macos_spaces_behavior(&window);
+        }
     }
     Ok(())
 }
@@ -215,9 +245,30 @@ pub fn run() {
         })
         .setup(|app| {
             let handle = app.handle().clone();
+
+            #[cfg(target_os = "macos")]
+            let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             
-            // メインウィンドウ取得
-            let window = app.get_webview_window("main").expect("Main window not found");
+            // メインウィンドウ生成 (Accessory設定後に生成することでフルスクリーンSpaceオーバーレイを有効化)
+            let window = WebviewWindowBuilder::new(
+                app,
+                "main",
+                WebviewUrl::App("index.html".into()),
+            )
+            .title("Overlay Player")
+            .inner_size(720.0, 450.0)
+            .min_inner_size(320.0, 200.0)
+            .resizable(true)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .shadow(true)
+            .build()
+            .map_err(|e| e.to_string())?;
+
+            // macOSでSpaces（仮想デスクトップ）や全画面アプリを跨いでも表示されるように設定
+            #[cfg(target_os = "macos")]
+            setup_macos_spaces_behavior(&window);
 
             // 初期サイズ
             let size = window.inner_size().unwrap_or(PhysicalSize::new(720, 450));

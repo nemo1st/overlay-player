@@ -11,22 +11,7 @@
   },
   "app": {
     "macOSPrivateApi": true,
-    "windows": [
-      {
-        "title": "Overlay Player",
-        "label": "main",
-        "width": 720,
-        "height": 450,
-        "minWidth": 320,
-        "minHeight": 200,
-        "resizable": true,
-        "decorations": false,
-        "transparent": true,
-        "alwaysOnTop": true,
-        "shadow": true,
-        "visible": true
-      }
-    ],
+    "windows": [],
     "security": {
       "csp": null
     }
