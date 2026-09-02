@@ -27,7 +27,7 @@ macOS上で作業しながら動画（Amazon Prime Video）や音楽（YouTube M
 - Node.js (v20以上)
 - Rust (`cargo` / `rustc`)
 
-### 起動コマンド
+### 起動・ビルドコマンド
 ```bash
 # 依存関係のインストール
 npm install
@@ -36,8 +36,17 @@ npm install
 npm run tauri dev
 
 # アプリケーションのビルド (.app / .dmg)
-npm run tauri build
+npm run build:app
 ```
+
+ビルド完了後、以下のディレクトリに macOS アプリケーションおよびインストーラー（DMG）が生成されます：
+- **`.app`**: `src-tauri/target/release/bundle/macos/OverlayPlayer.app`
+- **`.dmg`**: `src-tauri/target/release/bundle/dmg/OverlayPlayer_<version>_<arch>.dmg`
+
+### CI / CD (GitHub Actions)
+GitHub リポジトリへプッシュまたはリリースタグ（`v*`）を作成すると、GitHub Actions により自動で macOS 向けバイナリ（DMG / App）がビルドされます。
+- プッシュ・PR時: 各実行画面の **Artifacts** からダウンロード可能
+- リリースタグ時: **GitHub Releases** に自動公開
 
 ---
 
